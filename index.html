@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单视频站 - 编程小白版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; color: #333; }
+        
+        .header { 
+            background: #2c3e50; 
+            color: white; 
+            padding: 20px; 
+            text-align: center; 
+        }
+        
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        
+        .video-player { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        
+        video { 
+            width: 100%; 
+            max-width: 800px; 
+            height: auto; 
+            border-radius: 5px; 
+        }
+        
+        .video-list { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 20px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        
+        .video-item { 
+            padding: 15px; 
+            border-bottom: 1px solid #eee; 
+            cursor: pointer; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        
+        .video-item:hover { 
+            background: #f8f9fa; 
+        }
+        
+        .upload-section { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        
+        button { 
+            background: #3498db; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        
+        button:hover { 
+            background: #2980b9; 
+        }
+        
+        .loading { 
+            text-align: center; 
+            padding: 20px; 
+            color: #666; 
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎬 简单视频站</h1>
+        <p>编程小白也能搭建的视频播放平台</p>
+    </div>
+    
+    <div class="container">
+        <div class="upload-section">
+            <h3>📁 上传视频</h3>
+            <input type="file" id="videoUpload" accept="video/*">
+            <button onclick="uploadVideo()">上传视频</button>
+            <p><small>支持格式：MP4, WebM, OGG, MOV, AVI</small></p>
+        </div>
+        
+        <div class="video-player">
+            <h3>📺 视频播放器</h3>
+            <video id="mainVideo" controls>
+                <source src="" type="video/mp4">
+                您的浏览器不支持视频播放
+            </video>
+            <div id="videoInfo"></div>
+        </div>
+        
+        <div class="video-list">
+            <h3>🎞️ 视频列表</h3>
+            <button onclick="loadVideos()">刷新列表</button>
+            <div id="videoList">
+                <div class="loading">正在加载视频列表...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const mainVideo = document.getElementById('mainVideo');
+        const videoList = document.getElementById('videoList');
+        const videoInfo = document.getElementById('videoInfo');
+        const videoUpload = document.getElementById('videoUpload');
+
+        // 页面加载时自动获取视频列表
+        window.onload = loadVideos;
+
+        // 加载视频列表
+        async function loadVideos() {
+            videoList.innerHTML = '<div class="loading">正在加载视频列表...</div>';
+            
+            try {
+                const response = await fetch('/api/videos');
+                const data = await response.json();
+                
+                if (data.success && data.videos.length > 0) {
+                    videoList.innerHTML = data.videos.map(video => {
+                        return `
+                        <div class="video-item" onclick="playVideo('${video.path}', '${video.name}')">
+                            <span>${video.name}</span>
+                            <span>${formatFileSize(video.size)}</span>
+                        </div>`
+                    }).join('');
+                } else {
+                    videoList.innerHTML = '<div class="loading">暂无视频，请上传视频文件</div>';
+                }
+            } catch (error) {
+                videoList.innerHTML = '<div class="loading">加载失败，请检查服务器</div>';
+                console.error('加载视频列表失败:', error);
+            }
+        }
+
+        // 播放视频（修复版）
+        function playVideo(videoPath, videoName) {
+            // 直接使用服务器返回的完整路径
+            mainVideo.src = `${videoPath}#t=0`;
+            console.log('播放视频路径:', mainVideo.src);
+            
+            // 错误监听
+            mainVideo.addEventListener('error', () => {
+                videoInfo.innerHTML = `播放失败: ${mainVideo.error?.message || '未知错误'}`;
+            });
+            videoInfo.innerHTML = `
+                <p>正在播放: <strong>${videoName}</strong></p>
+                <div class="player-controls">
+                    <button onclick="mainVideo.play()">▶️ 播放</button>
+                    <button onclick="mainVideo.pause()">⏸️ 暂停</button>
+                    <span class="time-display">
+                        ${formatDuration(mainVideo.duration)}
+                    </span>
+                </div>
+            `;
+            mainVideo.play();
+            
+            // 记录播放位置
+            mainVideo.addEventListener('timeupdate', () => {
+                if (mainVideo.currentTime > 5) {
+                    localStorage.setItem(`lastPos_${videoPath}`, mainVideo.currentTime);
+                }
+            });
+        }
+        
+        // 新增时长格式化
+        function formatDuration(seconds) {
+            if (!seconds) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // 上传视频
+        async function uploadVideo() {
+            const file = videoUpload.files[0];
+            if (!file) {
+                alert('请选择视频文件');
+                return;
+            }
+
+            // 检查文件类型
+            const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('请选择有效的视频文件（MP4、WebM、OGG、MOV、AVI格式）');
+                return;
+            }
+
+            // 检查文件大小（限制100MB）
+            if (file.size > 100 * 1024 * 1024) {
+                alert('视频文件大小不能超过100MB');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('video', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('视频上传成功！');
+                    videoUpload.value = '';
+                    loadVideos(); // 刷新列表
+                } else {
+                    alert('上传失败：' + result.message);
+                }
+            } catch (error) {
+                console.error('上传错误:', error);
+                alert('上传失败，请检查网络连接');
+            }
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        console.log('🎬 简单视频站前端加载完成');
+        console.log('💡 使用说明：支持在线视频上传和播放');
+    </script>
+</body>
+</html>
