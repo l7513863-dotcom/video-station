@@ -1,0 +1,28 @@
+{
+  "envId": "your-env-id",
+  "region": "ap-shanghai",
+  "functionRoot": "./",
+  "functions": [
+    {
+      "name": "app",
+      "timeout": 5,
+      "envVariables": {},
+      "runtime": "Nodejs16.13",
+      "memorySize": 128,
+      "handler": "server.js"
+    }
+  ],
+  "framework": {
+    "name": "express",
+    "plugins": {
+      "client": {
+        "use": "@cloudbase/framework-plugin-node",
+        "inputs": {
+          "name": "video-station",
+          "path": "/",
+          "wrapExpress": true
+        }
+      }
+    }
+  }
+}
